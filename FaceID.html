@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>FaceID Vision</title>
+  <link rel="icon" href="https://i.postimg.cc/9rnTgGv6/103a204a-164b-4010-9a60-dc4ba2b34d71.png">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background: linear-gradient(145deg, #ecf1f7, #f9fbff);
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .glass {
+      backdrop-filter: blur(20px);
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 32px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+      width: 400px;
+      max-width: 90%;
+      text-align: center;
+      animation: fadeIn 1s ease;
+    }
+    video {
+      border-radius: 20px;
+      margin: 20px 0;
+      width: 100%;
+    }
+    button {
+      padding: 12px 24px;
+      background-color: #007aff;
+      border: none;
+      border-radius: 14px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #0051c8;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    p {
+      margin-top: 10px;
+      color: #333;
+    }
+    @keyframes fadeIn {
+      from {opacity: 0; transform: scale(0.95);}
+      to {opacity: 1; transform: scale(1);}
+    }
+  </style>
+</head>
+<body>
+  <div class="glass" id="ui">
+    <h1>Face ID Vision</h1>
+    <video id="video" autoplay muted></video>
+    <button onclick="register()">🔐 רישום פנים</button>
+    <button onclick="authenticate()">🔓 זיהוי פנים</button>
+    <p id="status">מוכן לפעולה...</p>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <script>
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+
+    let storedDescriptor = null;
+
+    async function loadModels() {
+      const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js/models';
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    }
+
+    async function startVideo() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+        video.srcObject = stream;
+      } catch (e) {
+        alert("הגישה למצלמה נדחתה.");
+      }
+    }
+
+    function saveDescriptor(descriptor) {
+      localStorage.setItem('faceDescriptor', JSON.stringify(Array.from(descriptor)));
+    }
+
+    function loadDescriptor() {
+      const saved = localStorage.getItem('faceDescriptor');
+      return saved ? new Float32Array(JSON.parse(saved)) : null;
+    }
+
+    async function register() {
+      status.innerText = "סריקת פנים לרישום...";
+      const detection = await captureFace();
+      if (!detection) {
+        status.innerText = "פנים לא זוהו.";
+        return;
+      }
+      saveDescriptor(detection.descriptor);
+      status.innerText = "הפנים נרשמו בהצלחה!";
+    }
+
+    async function authenticate() {
+      status.innerText = "מנסה לזהות...";
+      const saved = loadDescriptor();
+      if (!saved) {
+        status.innerText = "לא נרשמו פנים.";
+        return;
+      }
+      const detection = await captureFace();
+      if (!detection) {
+        status.innerText = "לא זוהו פנים.";
+        return;
+      }
+
+      const distance = faceapi.euclideanDistance(detection.descriptor, saved);
+      if (distance < 0.45) {
+        status.innerText = "✔️ זוהית בהצלחה!";
+      } else {
+        status.innerText = "❌ הפנים לא תואמות.";
+      }
+    }
+
+    async function captureFace() {
+      const result = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+      return result;
+    }
+
+    window.addEventListener('load', async () => {
+      await loadModels();
+      await startVideo();
+      storedDescriptor = loadDescriptor();
+    });
+  </script>
+</body>
+</html>
